@@ -1,0 +1,28 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Sonniger CR3",
+        "description": "Платы появляются сами по MQTT (sonniger/cr3/…). Выберите режим UI.",
+        "data": {
+          "ui_mode": "Режим UI"
+        }
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Интеграцию Sonniger CR3 можно добавить только один раз.",
+      "mqtt_required": "Сначала настройте интеграцию MQTT (брокер Mosquitto)."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Параметры Sonniger CR3",
+        "description": "Simple — Climate/Fan + alarm. Advanced — полный набор сущностей.",
+        "data": {
+          "ui_mode": "Режим UI"
+        }
+      }
+    }
+  }
+}

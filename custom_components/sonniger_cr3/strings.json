@@ -1,0 +1,28 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Sonniger CR3",
+        "description": "Boards appear automatically via MQTT (sonniger/cr3/…). Choose UI mode.",
+        "data": {
+          "ui_mode": "UI mode"
+        }
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Only one Sonniger CR3 integration is allowed.",
+      "mqtt_required": "Configure the MQTT integration first (Mosquitto broker)."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Sonniger CR3 options",
+        "description": "Simple = Climate/Fan + alarm. Advanced = full MQTT entity set.",
+        "data": {
+          "ui_mode": "UI mode"
+        }
+      }
+    }
+  }
+}

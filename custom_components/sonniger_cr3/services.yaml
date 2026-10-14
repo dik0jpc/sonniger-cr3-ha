@@ -1,0 +1,42 @@
+ping:
+  name: Ping
+  description: Send MQTT keepalive (cmd/ping) to one or all known boards.
+  fields:
+    device_id:
+      name: Device ID
+      description: Board device_id. Empty = all discovered boards.
+      example: hangar1
+      selector:
+        text:
+
+ota:
+  name: OTA
+  description: Trigger firmware OTA via MQTT cmd/ota.
+  fields:
+    url:
+      name: Firmware URL
+      description: https URL to the .bin (or http to private IPv4).
+      required: true
+      example: "https://192.168.1.50:8443/cr3_ec_controller-2.1.78.bin"
+      selector:
+        text:
+    device_id:
+      name: Device ID
+      description: Target board. Ignored when All is set.
+      example: hangar1
+      selector:
+        text:
+    all:
+      name: All boards
+      description: Publish to sonniger/cr3/all/cmd/ota (staggered).
+      default: false
+      selector:
+        boolean:
+    delay_s:
+      name: Delay seconds
+      description: Optional delay before OTA starts.
+      selector:
+        number:
+          min: 0
+          max: 600
+          mode: box
