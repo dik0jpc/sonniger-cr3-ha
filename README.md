@@ -1,4 +1,4 @@
-﻿# Sonniger CR3 — Home Assistant
+# Sonniger CR3 — Home Assistant
 
 HACS-интеграция для контроллеров **Sonniger CR3 / MIX EC** (MQTT).
 
@@ -25,3 +25,7 @@ HACS-интеграция для контроллеров **Sonniger CR3 / MIX E
 - `sonniger_cr3.ota` — OTA по URL (`device_id` или `all: true`)
 
 Прошивка и железо: приватный репозиторий контроллера (не входит в этот пакет).
+
+## Icon
+
+Brand icons: `icon.png` / `logo.png` (also under `brands/sonniger_cr3/`). HA Settings icon appears after merge into [home-assistant/brands](https://github.com/home-assistant/brands).
