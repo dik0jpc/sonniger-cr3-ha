@@ -28,4 +28,4 @@ HACS-интеграция для контроллеров **Sonniger CR3 / MIX E
 
 ## Icon
 
-Brand icons: `icon.png` / `logo.png` (also under `brands/sonniger_cr3/`). HA Settings icon appears after merge into [home-assistant/brands](https://github.com/home-assistant/brands).
+Fan brand images live in `custom_components/sonniger_cr3/brand/` (`icon.png`, `logo.png`, and `dark_*` variants). Home Assistant 2026.3+ serves them automatically — no brands repo PR needed. Update the integration in HACS to pick them up.
