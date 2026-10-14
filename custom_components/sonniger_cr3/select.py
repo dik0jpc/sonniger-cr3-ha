@@ -34,7 +34,10 @@ async def async_setup_entry(
 
 
 class SonnigerModeSelect(SonnigerEntity, SelectEntity):
+    """Mode stays writable on slaves (leave group / go Manual)."""
+
     _attr_options = MODE_OPTIONS
+    _cmd_leaf = "mode"
 
     def __init__(self, hub: SonnigerHub, device: SonnigerDevice) -> None:
         super().__init__(hub, device, "mode_sel", "Mode")

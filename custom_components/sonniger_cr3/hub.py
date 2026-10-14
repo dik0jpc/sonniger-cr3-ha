@@ -65,6 +65,62 @@ class SonnigerDevice:
             return default
         return raw in ("1", "on", "true", "ON", "True", "online")
 
+    def mode(self) -> str:
+        m = (self.get("mode") or "").strip().lower()
+        if m == "auto":
+            return "manual"
+        if m == "ha":
+            return "slave"
+        return m
+
+    def grp_role(self) -> str:
+        return (self.get("grp_role") or "").strip().lower()
+
+    def is_group_locked(self) -> bool:
+        """True when board follows master with grp_lock (HA must drive Master only)."""
+        mode = self.mode()
+        if mode not in ("slave", "smart"):
+            return False
+        role = self.grp_role()
+        if role not in ("follow", "lost"):
+            return False
+        # Default True when topic missing (FW default grp_lock=on).
+        return self.get_bool("grp_lock", True)
+
+    def cmd_writable(self, leaf: str) -> bool:
+        """Whether HA UI may send this cmd leaf.
+
+        When Slave/Smart is following Master with grp_lock, *all* controls except
+        Mode are read-only (drive the Master card only).
+        """
+        if not leaf:
+            return False
+        if leaf == "mode":
+            return True
+        # Follow + lock → HA must not edit this device's controls.
+        if self.is_group_locked():
+            return False
+        mode = self.mode()
+        if mode in ("manual", "master", ""):
+            return True
+        if mode == "slave":
+            # Hard slave (not locked / no follow yet): only FW allowlist.
+            return leaf in {
+                "fan_pct",
+                "fan2_pct",
+                "fan",
+                "fan2",
+                "valve",
+                "enable",
+                "mqtt_watchdog",
+                "watchdog",
+                "ota",
+                "ping",
+                "reboot",
+            }
+        # smart unlocked / wait / lost beyond lock window
+        return True
+
     def device_info(self) -> dict[str, Any]:
         info: dict[str, Any] = {
             "identifiers": {(DOMAIN, self.device_id)},

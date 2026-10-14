@@ -12,6 +12,13 @@ from .const import DOMAIN
 from .entity import SonnigerEntity
 from .hub import SonnigerDevice, SonnigerHub
 
+try:
+    from homeassistant.components.number import NumberEntityFeature
+except ImportError:  # pragma: no cover
+    NumberEntityFeature = None  # type: ignore[misc, assignment]
+
+_SET_VALUE = getattr(NumberEntityFeature, "SET_VALUE", None) if NumberEntityFeature else None
+
 # key, name, state_leaf, cmd_leaf, min, max, step, unit, cr3, mix
 NUMBER_DEFS = [
     ("heat_target", "Heat target", "heat_target", "heat_target", 0, 100, 0.5, None, True, False),
@@ -83,15 +90,25 @@ class SonnigerNumber(SonnigerEntity, NumberEntity):
         self._attr_native_max_value = maximum
         self._attr_native_step = step
         self._attr_native_unit_of_measurement = unit
+        self._sync_control_features()
+
+    def _sync_control_features(self) -> None:
+        if _SET_VALUE is None or NumberEntityFeature is None:
+            return
+        if self._device.cmd_writable(self._cmd_leaf or ""):
+            self._attr_supported_features = _SET_VALUE
+        else:
+            self._attr_supported_features = NumberEntityFeature(0)
 
     @property
     def native_value(self) -> float | None:
         return self._device.get_float(self._state_leaf)
 
     async def async_set_native_value(self, value: float) -> None:
-        # integers for some leaves
+        if not self._device.cmd_writable(self._cmd_leaf or ""):
+            return
         if self._attr_native_step >= 1 and float(self._attr_native_step).is_integer():
             payload = str(int(round(value)))
         else:
             payload = str(value)
-        await self._async_cmd(self._cmd_leaf, payload)
+        await self._async_cmd(self._cmd_leaf or "", payload)

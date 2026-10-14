@@ -44,6 +44,7 @@ SENSOR_DEFS = [
     ("grp_role", "Group role", "grp_role", None, None, None, True, False, False, True),
     ("grp_master", "Group master", "grp_master", None, None, None, True, False, False, True),
     ("grp_n", "Group slaves", "grp_n", None, None, SensorStateClass.MEASUREMENT, True, False, False, False),
+    ("grp_lock", "Group lock", "grp_lock", None, None, None, True, False, False, True),
 ]
 
 

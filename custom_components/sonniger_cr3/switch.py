@@ -11,11 +11,16 @@ from .const import DOMAIN
 from .entity import SonnigerEntity
 from .hub import SonnigerDevice, SonnigerHub
 
-# key, name, state_leaf, cmd_leaf, advanced_only, cr3_only, mix_only, simple_mix_enable
+try:
+    from homeassistant.components.switch import SwitchEntityFeature
+except ImportError:  # pragma: no cover
+    SwitchEntityFeature = None  # type: ignore[misc, assignment]
+
+_TURN_ON = getattr(SwitchEntityFeature, "TURN_ON", None) if SwitchEntityFeature else None
+_TURN_OFF = getattr(SwitchEntityFeature, "TURN_OFF", None) if SwitchEntityFeature else None
+
 SWITCH_DEFS = [
-    # MIX Simple (+ Advanced): circuit enable
     ("enable", "Circuit enable", "enabled", "enable", False, False, True),
-    # Advanced CR3: enable also available as switch (Climate still primary)
     ("enable_adv", "Circuit enable", "enabled", "enable", True, True, False),
     ("valve", "Valve", "valve", "valve", True, True, False),
     ("eco", "Eco", "eco", "eco", True, False, False),
@@ -46,7 +51,6 @@ async def async_setup_entry(
                 continue
             if mix and not device.is_mix:
                 continue
-            # enable_adv only when Advanced CR3 (unique_id differs from MIX enable)
             if key == "enable_adv" and (device.is_mix or not hub.is_advanced()):
                 continue
             known.add(uid)
@@ -70,13 +74,22 @@ class SonnigerSwitch(SonnigerEntity, SwitchEntity):
         super().__init__(hub, device, key, name)
         self._state_leaf = state_leaf
         self._cmd_leaf = cmd_leaf
+        self._sync_control_features()
+
+    def _sync_control_features(self) -> None:
+        if _TURN_ON is None or _TURN_OFF is None or SwitchEntityFeature is None:
+            return
+        if self._device.cmd_writable(self._cmd_leaf or ""):
+            self._attr_supported_features = _TURN_ON | _TURN_OFF
+        else:
+            self._attr_supported_features = SwitchEntityFeature(0)
 
     @property
     def is_on(self) -> bool | None:
         return self._device.get_bool(self._state_leaf)
 
     async def async_turn_on(self, **kwargs) -> None:
-        await self._async_cmd(self._cmd_leaf, "1")
+        await self._async_cmd(self._cmd_leaf or "", "1")
 
     async def async_turn_off(self, **kwargs) -> None:
-        await self._async_cmd(self._cmd_leaf, "0")
+        await self._async_cmd(self._cmd_leaf or "", "0")

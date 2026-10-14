@@ -6,7 +6,7 @@ from homeassistant.core import callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import Entity
 
-from .const import SIGNAL_DEVICE
+from .const import INTEGRATION_VERSION, SIGNAL_DEVICE
 from .hub import SonnigerDevice, SonnigerHub
 
 
@@ -15,6 +15,8 @@ class SonnigerEntity(Entity):
 
     _attr_has_entity_name = True
     _attr_should_poll = False
+    # MQTT cmd leaf this control writes; None = sensors / always-info.
+    _cmd_leaf: str | None = None
 
     def __init__(
         self,
@@ -34,7 +36,33 @@ class SonnigerEntity(Entity):
     def available(self) -> bool:
         return self._device.online
 
+    @property
+    def cmd_writable(self) -> bool:
+        if not self._cmd_leaf:
+            return True
+        return self._device.cmd_writable(self._cmd_leaf)
+
+    @property
+    def icon(self) -> str | None:
+        if self._cmd_leaf and not self.cmd_writable:
+            return "mdi:lock"
+        return None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, str | bool]:
+        attrs: dict[str, str | bool] = {
+            "integration_version": INTEGRATION_VERSION,
+        }
+        if self._cmd_leaf:
+            attrs["writable"] = self.cmd_writable
+            attrs["group_locked"] = self._device.is_group_locked()
+        return attrs
+
+    def _sync_control_features(self) -> None:
+        """Override in Number/Switch/Climate/Fan to refresh supported_features."""
+
     async def async_added_to_hass(self) -> None:
+        self._sync_control_features()
         self.async_on_remove(
             async_dispatcher_connect(
                 self.hass,
@@ -47,7 +75,10 @@ class SonnigerEntity(Entity):
     def _handle_update(self, device: SonnigerDevice) -> None:
         self._device = device
         self._attr_device_info = device.device_info()
+        self._sync_control_features()
         self.async_write_ha_state()
 
     async def _async_cmd(self, leaf: str, payload: str) -> None:
+        if not self._device.cmd_writable(leaf):
+            return
         await self._hub.async_publish(self._device.device_id, leaf, payload)

@@ -46,20 +46,32 @@ class SonnigerClimate(SonnigerEntity, ClimateEntity):
     """CR3 heat circuit as a thermostat."""
 
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
-    _attr_hvac_modes = [HVACMode.OFF, HVACMode.HEAT]
     _attr_fan_modes = FAN_MODES
     _attr_min_temp = 0.0
     _attr_max_temp = 100.0
     _attr_target_temperature_step = 0.5
-    _attr_supported_features = (
-        ClimateEntityFeature.TARGET_TEMPERATURE
-        | ClimateEntityFeature.FAN_MODE
-        | ClimateEntityFeature.TURN_ON
-        | ClimateEntityFeature.TURN_OFF
-    )
+    _cmd_leaf = "enable"  # attrs: group lock state
 
     def __init__(self, hub: SonnigerHub, device: SonnigerDevice) -> None:
         super().__init__(hub, device, "climate", "Climate")
+
+    @property
+    def hvac_modes(self) -> list[HVACMode]:
+        if self._device.cmd_writable("enable"):
+            return [HVACMode.OFF, HVACMode.HEAT]
+        return [self.hvac_mode]
+
+    @property
+    def supported_features(self) -> ClimateEntityFeature:
+        feats = ClimateEntityFeature(0)
+        # Hard Slave: heat_target not accepted by FW — hide target control.
+        if self._device.cmd_writable("heat_target"):
+            feats |= ClimateEntityFeature.TARGET_TEMPERATURE
+        if self._device.cmd_writable("fan_pct"):
+            feats |= ClimateEntityFeature.FAN_MODE
+        if self._device.cmd_writable("enable"):
+            feats |= ClimateEntityFeature.TURN_ON | ClimateEntityFeature.TURN_OFF
+        return feats
 
     @property
     def current_temperature(self) -> float | None:

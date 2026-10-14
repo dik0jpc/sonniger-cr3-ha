@@ -38,15 +38,21 @@ async def async_setup_entry(
 class SonnigerFan(SonnigerEntity, FanEntity):
     """MIX fan percentage."""
 
-    _attr_supported_features = (
-        FanEntityFeature.SET_SPEED
-        | FanEntityFeature.TURN_ON
-        | FanEntityFeature.TURN_OFF
-    )
     _attr_percentage_step = 1.0
+    _cmd_leaf = "fan_pct"
 
     def __init__(self, hub: SonnigerHub, device: SonnigerDevice) -> None:
         super().__init__(hub, device, "fan", "Fan")
+
+    @property
+    def supported_features(self) -> FanEntityFeature:
+        if self._device.cmd_writable("fan_pct"):
+            return (
+                FanEntityFeature.SET_SPEED
+                | FanEntityFeature.TURN_ON
+                | FanEntityFeature.TURN_OFF
+            )
+        return FanEntityFeature(0)
 
     @property
     def is_on(self) -> bool | None:
