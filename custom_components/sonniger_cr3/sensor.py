@@ -34,6 +34,7 @@ SENSOR_DEFS = [
     ("fan_pct", "Fan %", "fan_pct", PERCENTAGE, None, SensorStateClass.MEASUREMENT, True, False, False, False),
     ("fan2_pct", "Fan2 %", "fan2_pct", PERCENTAGE, None, SensorStateClass.MEASUREMENT, True, True, False, False),
     ("fw", "Firmware", "fw", None, None, None, True, False, False, True),
+    ("ip", "IP", "ip", None, None, None, True, False, False, True),
     ("uptime", "Uptime", "uptime", UnitOfTime.SECONDS, SensorDeviceClass.DURATION, SensorStateClass.TOTAL_INCREASING, True, False, False, False),
     ("ota", "OTA status", "ota", None, None, None, True, False, False, True),
     ("load_pct", "Loop load", "load_pct", PERCENTAGE, None, SensorStateClass.MEASUREMENT, True, False, False, False),

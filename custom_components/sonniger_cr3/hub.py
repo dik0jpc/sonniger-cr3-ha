@@ -66,13 +66,17 @@ class SonnigerDevice:
         return raw in ("1", "on", "true", "ON", "True", "online")
 
     def device_info(self) -> dict[str, Any]:
-        return {
+        info: dict[str, Any] = {
             "identifiers": {(DOMAIN, self.device_id)},
             "name": self.name,
             "manufacturer": MANUFACTURER,
             "model": self.model,
             "sw_version": self.data.get("fw"),
         }
+        ip = self.data.get("ip")
+        if ip and ip not in ("0.0.0.0", ""):
+            info["configuration_url"] = f"http://{ip}/"
+        return info
 
 
 class SonnigerHub:
