@@ -8,30 +8,36 @@ import voluptuous as vol
 
 from homeassistant import config_entries
 from homeassistant.core import callback
-from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import selector
 
-from .const import CONF_UI_MODE, DOMAIN, UI_MODE_SIMPLE
+from .const import CONF_UI_MODE, DOMAIN, UI_MODE_ADVANCED, UI_MODE_SIMPLE
 
-UI_MODE_SCHEMA = vol.Schema(
-    {
-        vol.Required(CONF_UI_MODE, default=UI_MODE_SIMPLE): selector.SelectSelector(
-            selector.SelectSelectorConfig(
-                options=[
-                    selector.SelectOptionDict(
-                        value=UI_MODE_SIMPLE,
-                        label="Simple — Climate/Fan + alarm",
-                    ),
-                    selector.SelectOptionDict(
-                        value=UI_MODE_ADVANCED,
-                        label="Advanced — full sensors & controls",
-                    ),
-                ],
-                mode=selector.SelectSelectorMode.LIST,
-            )
-        ),
-    }
-)
+try:
+    from homeassistant.config_entries import ConfigFlowResult
+except ImportError:  # older HA
+    from homeassistant.data_entry_flow import FlowResult as ConfigFlowResult
+
+
+def _ui_mode_schema(default: str = UI_MODE_SIMPLE) -> vol.Schema:
+    return vol.Schema(
+        {
+            vol.Required(CONF_UI_MODE, default=default): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[
+                        selector.SelectOptionDict(
+                            value=UI_MODE_SIMPLE,
+                            label="Simple — Climate/Fan + alarm",
+                        ),
+                        selector.SelectOptionDict(
+                            value=UI_MODE_ADVANCED,
+                            label="Advanced — full sensors & controls",
+                        ),
+                    ],
+                    mode=selector.SelectSelectorMode.LIST,
+                )
+            ),
+        }
+    )
 
 
 class SonnigerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -41,7 +47,7 @@ class SonnigerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         if self._async_current_entries():
             return self.async_abort(reason="single_instance_allowed")
 
@@ -54,52 +60,30 @@ class SonnigerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 data={CONF_UI_MODE: user_input[CONF_UI_MODE]},
             )
 
-        return self.async_show_form(step_id="user", data_schema=UI_MODE_SCHEMA)
+        return self.async_show_form(step_id="user", data_schema=_ui_mode_schema())
 
     @staticmethod
     @callback
     def async_get_options_flow(
         config_entry: config_entries.ConfigEntry,
-    ) -> SonnigerOptionsFlow:
-        return SonnigerOptionsFlow(config_entry)
+    ) -> config_entries.OptionsFlow:
+        return SonnigerOptionsFlow()
 
 
 class SonnigerOptionsFlow(config_entries.OptionsFlow):
     """Options: switch Simple / Advanced."""
 
-    def __init__(self, entry: config_entries.ConfigEntry) -> None:
-        self._entry = entry
-
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
-        current = self._entry.options.get(
-            CONF_UI_MODE, self._entry.data.get(CONF_UI_MODE, UI_MODE_SIMPLE)
+        entry = self.config_entry
+        current = entry.options.get(
+            CONF_UI_MODE, entry.data.get(CONF_UI_MODE, UI_MODE_SIMPLE)
         )
         return self.async_show_form(
             step_id="init",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(
-                        CONF_UI_MODE, default=current
-                    ): selector.SelectSelector(
-                        selector.SelectSelectorConfig(
-                            options=[
-                                selector.SelectOptionDict(
-                                    value=UI_MODE_SIMPLE,
-                                    label="Simple — Climate/Fan + alarm",
-                                ),
-                                selector.SelectOptionDict(
-                                    value=UI_MODE_ADVANCED,
-                                    label="Advanced — full sensors & controls",
-                                ),
-                            ],
-                            mode=selector.SelectSelectorMode.LIST,
-                        )
-                    ),
-                }
-            ),
+            data_schema=_ui_mode_schema(current),
         )
