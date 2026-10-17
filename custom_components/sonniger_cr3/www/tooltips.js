@@ -1,13 +1,16 @@
 /**
- * Sonniger CR3 — show attributes.description on hover.
- * HA device page uses ha-tooltip / title with the entity NAME; we override per-row
- * via pointerover + composedPath (do NOT blanket-walk and title parents — that
- * made "Loop load" show "OTA status").
+ * Sonniger CR3 — custom hover tip from attributes.description.
+ * Do NOT rely on HA title / ha-tooltip (they show entity NAME and can leak
+ * the previous row's name onto the next — e.g. Loop load → "OTA status").
  */
 (function () {
   const ATTR = "description";
   const ATTR_RU = "справка";
-  const MARK = "data-sonniger-tip";
+  const TIP_ID = "sonniger-cr3-tip";
+  const STYLE_ID = "sonniger-cr3-tip-css";
+  let tipEl = null;
+  let hideTimer = null;
+  let lastEntity = "";
 
   function hass() {
     try {
@@ -45,57 +48,87 @@
     return null;
   }
 
-  function isRowHost(n) {
-    if (!n || !n.localName) return false;
-    const t = n.localName;
-    return (
-      t === "ha-list-item" ||
-      t === "ha-md-list-item" ||
-      t === "hui-generic-entity-row" ||
-      (t.startsWith("hui-") && t.endsWith("-entity-row")) ||
-      t.startsWith("hui-sensor-") ||
-      t === "state-badge" ||
-      t === "ha-state-icon"
-    );
+  function ensureTip() {
+    if (tipEl && document.body.contains(tipEl)) return tipEl;
+    if (!document.getElementById(STYLE_ID)) {
+      const s = document.createElement("style");
+      s.id = STYLE_ID;
+      s.textContent =
+        "#" +
+        TIP_ID +
+        "{position:fixed;z-index:100000;max-width:min(360px,92vw);" +
+        "padding:8px 10px;border-radius:8px;font:13px/1.35 system-ui,sans-serif;" +
+        "color:#f5f5f5;background:#1c1c1c;border:1px solid #666;" +
+        "box-shadow:0 4px 16px rgba(0,0,0,.45);pointer-events:none;" +
+        "white-space:pre-wrap;word-break:break-word;display:none;}";
+      document.documentElement.appendChild(s);
+    }
+    tipEl = document.createElement("div");
+    tipEl.id = TIP_ID;
+    tipEl.setAttribute("role", "tooltip");
+    document.body.appendChild(tipEl);
+    return tipEl;
   }
 
-  function applyHelp(entityId, path) {
-    const text = helpFor(entityId);
-    if (!text) return;
+  function placeTip(x, y) {
+    const el = ensureTip();
+    const pad = 12;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    el.style.display = "block";
+    // measure after text set
+    const w = el.offsetWidth || 280;
+    const h = el.offsetHeight || 40;
+    let left = x + pad;
+    let top = y + pad;
+    if (left + w > vw - 8) left = Math.max(8, x - w - pad);
+    if (top + h > vh - 8) top = Math.max(8, y - h - pad);
+    el.style.left = left + "px";
+    el.style.top = top + "px";
+  }
 
-    // 1) Override ha-tooltip content (HA 2024+ device / lovelace rows)
+  function showTip(text, x, y) {
+    if (hideTimer) {
+      clearTimeout(hideTimer);
+      hideTimer = null;
+    }
+    const el = ensureTip();
+    el.textContent = text;
+    placeTip(x, y);
+  }
+
+  function hideTipSoon() {
+    if (hideTimer) clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => {
+      if (tipEl) tipEl.style.display = "none";
+      lastEntity = "";
+    }, 80);
+  }
+
+  /** Kill native name tooltips on this row so they don't fight ours. */
+  function silenceNativeTitles(path) {
     for (const n of path) {
-      if (!n || n.localName !== "ha-tooltip") continue;
+      if (!n || !n.removeAttribute) continue;
       try {
-        if (n.content !== text) {
-          n.content = text;
-          n.setAttribute?.("content", text);
-          n.requestUpdate?.();
+        if (n.hasAttribute?.("title")) {
+          const t = n.getAttribute("title") || "";
+          // Keep only if it already looks like our long help
+          if (t.length < 40) n.removeAttribute("title");
         }
       } catch (e) {
         /* ignore */
       }
-    }
-
-    // 2) title only on the entity row host (not ancestors — avoids wrong tips)
-    let row = null;
-    for (const n of path) {
-      if (isRowHost(n)) {
-        row = n;
-        break;
-      }
-    }
-    if (!row) {
-      for (const n of path) {
-        if (entityIdFromNode(n) === entityId && n.setAttribute) {
-          row = n;
-          break;
+      if (n.localName === "ha-tooltip") {
+        try {
+          // Empty content so HA doesn't flash the entity name
+          if (typeof n.content === "string" && n.content.length < 40) {
+            n.content = "";
+            n.setAttribute?.("content", "");
+          }
+        } catch (e) {
+          /* ignore */
         }
       }
-    }
-    if (row?.setAttribute) {
-      row.setAttribute("title", text);
-      row.setAttribute(MARK, entityId);
     }
   }
 
@@ -106,13 +139,35 @@
       entityId = entityIdFromNode(n);
       if (entityId) break;
     }
-    if (!entityId || !helpFor(entityId)) return;
-    applyHelp(entityId, path);
+    if (!entityId) {
+      hideTipSoon();
+      return;
+    }
+    const text = helpFor(entityId);
+    if (!text) {
+      hideTipSoon();
+      return;
+    }
+    silenceNativeTitles(path);
+    lastEntity = entityId;
+    const x = ev.clientX ?? 0;
+    const y = ev.clientY ?? 0;
+    showTip(text, x, y);
+  }
+
+  function onPointerMove(ev) {
+    if (!lastEntity || !tipEl || tipEl.style.display === "none") return;
+    placeTip(ev.clientX ?? 0, ev.clientY ?? 0);
+  }
+
+  function onPointerOut() {
+    hideTipSoon();
   }
 
   function start() {
-    // Capture phase so we run before HA finishes its own tip with just the name
     document.addEventListener("pointerover", onPointerOver, true);
+    document.addEventListener("pointermove", onPointerMove, true);
+    document.addEventListener("pointerout", onPointerOut, true);
     document.addEventListener("focusin", onPointerOver, true);
   }
 
