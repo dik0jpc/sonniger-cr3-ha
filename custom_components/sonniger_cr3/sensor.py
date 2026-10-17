@@ -41,8 +41,9 @@ SENSOR_DEFS = [
     ("roms_ok", "ROMs OK", "roms_ok", None, None, None, True, False, False, True),
     ("mode", "Mode", "mode", None, None, None, True, False, False, True),
     ("group", "Group", "group", None, None, None, True, False, False, True),
-    ("grp_role", "Group role", "grp_role", None, None, None, True, False, False, True),
-    ("grp_master", "Group master", "grp_master", None, None, None, True, False, False, True),
+    ("grp_role", "Group role", "grp_role", None, None, None, False, False, False, True),
+    ("grp_master", "Group master", "grp_master", None, None, None, False, False, False, True),
+    ("grp_master_ip", "Group master IP", "grp_master_ip", None, None, None, False, False, False, True),
     ("grp_n", "Group slaves", "grp_n", None, None, SensorStateClass.MEASUREMENT, True, False, False, False),
     ("grp_lock", "Group lock", "grp_lock", None, None, None, True, False, False, True),
 ]

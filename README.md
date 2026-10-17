@@ -16,11 +16,13 @@ HACS-интеграция для контроллеров **Sonniger CR3 / MIX E
 
 Управляйте **Master**. У Slave/Smart в `follow` + `grp_lock` поля Climate / Number / Switch / Fan **read-only** (иконка замка). Mode остаётся доступен.
 
+С **1.0.8** (прошивка ≥ **2.1.93**): в Simple видны **Group role**, **Group master**, **Group master IP** — кто сейчас master и его Ethernet IP. На mastering-плате поля указывают на себя.
+
 ## Режимы
 
 | Режим | CR3 | MIX |
 |-------|-----|-----|
-| Simple | Climate + online/alarm | Fan + Circuit enable + online/alarm |
+| Simple | Climate + online/alarm + group role/master/IP | Fan + Circuit enable + online/alarm + group role/master/IP |
 | Advanced | + температуры, Mode, AFZ, OTA, group… | + ΔT/phase и уставки |
 
 ## Сервисы
