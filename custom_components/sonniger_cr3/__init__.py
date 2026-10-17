@@ -29,11 +29,10 @@ _FRONTEND_KEY = f"{DOMAIN}_frontend"
 
 
 async def _async_setup_frontend(hass: HomeAssistant) -> None:
-    """Serve one-shot cleanup JS (removes stuck overlays from older releases).
+    """Serve cleanup JS (clears stuck overlays / polluted ha-tooltip from 1.0.9–12).
 
-    Home Assistant has no integration API for custom entity hover tooltips
-    (frontend discussion #24271). Help stays in attributes.description /
-    attributes.справка — open the entity → Attributes.
+    HA has no API for custom entity hover tooltips. Help: attributes.help /
+    attributes.справка — open entity → Attributes.
     """
     if hass.data.get(_FRONTEND_KEY):
         return
