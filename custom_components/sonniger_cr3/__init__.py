@@ -29,12 +29,16 @@ _FRONTEND_KEY = f"{DOMAIN}_frontend"
 
 
 async def _async_setup_frontend(hass: HomeAssistant) -> None:
-    """Serve www/tooltips.js (hover help from attributes.description)."""
+    """Serve one-shot cleanup JS (removes stuck overlays from older releases).
+
+    Home Assistant has no integration API for custom entity hover tooltips
+    (frontend discussion #24271). Help stays in attributes.description /
+    attributes.справка — open the entity → Attributes.
+    """
     if hass.data.get(_FRONTEND_KEY):
         return
     www = Path(__file__).parent / "www"
     if not www.is_dir():
-        _LOGGER.warning("sonniger_cr3: www/ missing — entity hover tips disabled")
         return
     url_path = f"/{DOMAIN}_static"
     try:
@@ -52,14 +56,11 @@ async def _async_setup_frontend(hass: HomeAssistant) -> None:
     try:
         from homeassistant.components.frontend import add_extra_js_url
 
-        # Cache-bust so HACS/browser picks up tip script after upgrade.
+        # Cache-bust: old builds attached pointermove listeners; this build only cleans up.
         add_extra_js_url(
             hass, f"{url_path}/tooltips.js?v={INTEGRATION_VERSION}"
         )
         hass.data[_FRONTEND_KEY] = True
-        _LOGGER.info(
-            "sonniger_cr3: entity tooltip script %s", INTEGRATION_VERSION
-        )
     except Exception as err:  # noqa: BLE001
         _LOGGER.warning("sonniger_cr3: extra js failed: %s", err)
 

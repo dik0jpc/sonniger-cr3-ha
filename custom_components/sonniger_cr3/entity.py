@@ -61,7 +61,7 @@ class SonnigerEntity(Entity):
             platform = self.entity_id.split(".", 1)[0]
         desc = help_text(self.hass, self._key, platform)
         if desc:
-            # more-info + www/tooltips.js (hover). Duplicate RU key for visibility.
+            # Official place for long help: more-info → Attributes (no custom hover API).
             attrs["description"] = desc
             attrs["справка"] = desc
         if self._cmd_leaf:
