@@ -1,7 +1,6 @@
 /**
- * Sonniger CR3 — custom hover tip from attributes.description.
- * Do NOT rely on HA title / ha-tooltip (they show entity NAME and can leak
- * the previous row's name onto the next — e.g. Loop load → "OTA status").
+ * Sonniger CR3 — hover help from attributes.description.
+ * Re-resolve entity under cursor on every move (no sticky text / follow-old).
  */
 (function () {
   const ATTR = "description";
@@ -9,8 +8,7 @@
   const TIP_ID = "sonniger-cr3-tip";
   const STYLE_ID = "sonniger-cr3-tip-css";
   let tipEl = null;
-  let hideTimer = null;
-  let lastEntity = "";
+  let lastText = "";
 
   function hass() {
     try {
@@ -48,6 +46,79 @@
     return null;
   }
 
+  function isRowHost(n) {
+    if (!n || !n.localName) return false;
+    const t = n.localName;
+    return (
+      t === "ha-list-item" ||
+      t === "ha-md-list-item" ||
+      t === "hui-generic-entity-row" ||
+      (t.startsWith("hui-") && t.endsWith("-entity-row")) ||
+      t.startsWith("hui-sensor-") ||
+      t === "ha-settings-row" ||
+      t === "ha-entity-toggle" ||
+      t === "state-badge" ||
+      t === "ha-state-icon"
+    );
+  }
+
+  /** Deepest helpful entity on this event path (row preferred over nested). */
+  function resolveFromPath(path) {
+    let nested = null;
+    let nestedText = "";
+    let row = null;
+    let rowText = "";
+    for (const n of path) {
+      if (!n || n === tipEl) continue;
+      if (n.id === TIP_ID) continue;
+      const id = entityIdFromNode(n);
+      if (!id) continue;
+      const text = helpFor(id);
+      if (!text) continue;
+      if (!nested) {
+        nested = id;
+        nestedText = text;
+      }
+      if (isRowHost(n) && !row) {
+        row = id;
+        rowText = text;
+      }
+    }
+    if (row) return { id: row, text: rowText };
+    if (nested) return { id: nested, text: nestedText };
+    return null;
+  }
+
+  function resolveFromPoint(x, y) {
+    let stack;
+    try {
+      stack = document.elementsFromPoint(x, y);
+    } catch (e) {
+      return null;
+    }
+    if (!stack || !stack.length) return null;
+    for (const el of stack) {
+      if (el === tipEl || el.id === TIP_ID) continue;
+      let n = el;
+      const seen = new Set();
+      while (n && !seen.has(n)) {
+        seen.add(n);
+        const id = entityIdFromNode(n);
+        if (id) {
+          const text = helpFor(id);
+          if (text) return { id, text };
+        }
+        const parent = n.parentNode;
+        if (parent) {
+          n = parent;
+          continue;
+        }
+        n = n.host || null; /* shadow root → host */
+      }
+    }
+    return null;
+  }
+
   function ensureTip() {
     if (tipEl && document.body.contains(tipEl)) return tipEl;
     if (!document.getElementById(STYLE_ID)) {
@@ -70,13 +141,21 @@
     return tipEl;
   }
 
-  function placeTip(x, y) {
+  function hideTip() {
+    lastText = "";
+    if (tipEl) tipEl.style.display = "none";
+  }
+
+  function showTip(text, x, y) {
     const el = ensureTip();
-    const pad = 12;
+    if (text !== lastText) {
+      el.textContent = text;
+      lastText = text;
+    }
+    const pad = 14;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     el.style.display = "block";
-    // measure after text set
     const w = el.offsetWidth || 280;
     const h = el.offsetHeight || 40;
     let left = x + pad;
@@ -87,32 +166,12 @@
     el.style.top = top + "px";
   }
 
-  function showTip(text, x, y) {
-    if (hideTimer) {
-      clearTimeout(hideTimer);
-      hideTimer = null;
-    }
-    const el = ensureTip();
-    el.textContent = text;
-    placeTip(x, y);
-  }
-
-  function hideTipSoon() {
-    if (hideTimer) clearTimeout(hideTimer);
-    hideTimer = setTimeout(() => {
-      if (tipEl) tipEl.style.display = "none";
-      lastEntity = "";
-    }, 80);
-  }
-
-  /** Kill native name tooltips on this row so they don't fight ours. */
   function silenceNativeTitles(path) {
     for (const n of path) {
       if (!n || !n.removeAttribute) continue;
       try {
         if (n.hasAttribute?.("title")) {
           const t = n.getAttribute("title") || "";
-          // Keep only if it already looks like our long help
           if (t.length < 40) n.removeAttribute("title");
         }
       } catch (e) {
@@ -120,7 +179,6 @@
       }
       if (n.localName === "ha-tooltip") {
         try {
-          // Empty content so HA doesn't flash the entity name
           if (typeof n.content === "string" && n.content.length < 40) {
             n.content = "";
             n.setAttribute?.("content", "");
@@ -132,43 +190,26 @@
     }
   }
 
-  function onPointerOver(ev) {
+  function updateFromEvent(ev) {
+    const x = ev.clientX ?? 0;
+    const y = ev.clientY ?? 0;
     const path = typeof ev.composedPath === "function" ? ev.composedPath() : [];
-    let entityId = null;
-    for (const n of path) {
-      entityId = entityIdFromNode(n);
-      if (entityId) break;
-    }
-    if (!entityId) {
-      hideTipSoon();
-      return;
-    }
-    const text = helpFor(entityId);
-    if (!text) {
-      hideTipSoon();
+    let hit = resolveFromPath(path);
+    if (!hit) hit = resolveFromPoint(x, y);
+    if (!hit) {
+      hideTip();
       return;
     }
     silenceNativeTitles(path);
-    lastEntity = entityId;
-    const x = ev.clientX ?? 0;
-    const y = ev.clientY ?? 0;
-    showTip(text, x, y);
-  }
-
-  function onPointerMove(ev) {
-    if (!lastEntity || !tipEl || tipEl.style.display === "none") return;
-    placeTip(ev.clientX ?? 0, ev.clientY ?? 0);
-  }
-
-  function onPointerOut() {
-    hideTipSoon();
+    showTip(hit.text, x, y);
   }
 
   function start() {
-    document.addEventListener("pointerover", onPointerOver, true);
-    document.addEventListener("pointermove", onPointerMove, true);
-    document.addEventListener("pointerout", onPointerOut, true);
-    document.addEventListener("focusin", onPointerOver, true);
+    /* pointermove alone: always re-bind entity + text under cursor */
+    document.addEventListener("pointermove", updateFromEvent, true);
+    document.addEventListener("pointerover", updateFromEvent, true);
+    document.addEventListener("pointerleave", hideTip, true);
+    document.addEventListener("blur", hideTip, true);
   }
 
   if (document.readyState === "loading") {
