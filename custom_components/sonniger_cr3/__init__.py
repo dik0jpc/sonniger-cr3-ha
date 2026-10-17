@@ -29,7 +29,7 @@ _FRONTEND_KEY = f"{DOMAIN}_frontend"
 
 
 async def _async_setup_frontend(hass: HomeAssistant) -> None:
-    """Serve www/tooltips.js — own manual ha-tooltip with attributes.help on hover."""
+    """Serve www/tooltips.js — disable native name tip; show help on hover."""
     if hass.data.get(_FRONTEND_KEY):
         return
     www = Path(__file__).parent / "www"

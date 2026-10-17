@@ -1,30 +1,21 @@
 /**
- * Sonniger CR3 1.0.17 — put long help INTO the native tip that shows the name.
+ * Sonniger CR3 1.0.19 — one hover tip with attributes.help.
  *
- * User requirement: explanation must appear in the same tip that says
- * "OTA status" / "Uptime" / … — not a second tip behind it.
- *
- * ha-tooltip text is the default SLOT (light DOM children), not `.content`.
- * We replace that slot text with attributes.help while hovered, and keep
- * re-applying (rAF) because Lit re-renders reset the slot to the short name.
- * On leave we restore. No second tip element. No mouse-follow overlay.
+ * 1.0.17 tried to rewrite the native tip slot; Lit/WA kept showing the short
+ * name ("Group master"). This build:
+ *   - disables every native ha-tooltip under the pointer
+ *   - shows ONE manual ha-tooltip we own, anchored to the row, with help text
+ * So the window under the cursor is the long explanation — not a second tip
+ * behind the name, and not the useless short name alone.
  */
 (function () {
   const ATTRS = ["help", "\u0441\u043f\u0440\u0430\u0432\u043a\u0430"];
-  const LEGACY_IDS = [
-    "sonniger-cr3-help-tip",
-    "sonniger-cr3-tip",
-    "sonniger-cr3-tip-css",
-  ];
+  const TIP_ID = "sonniger-cr3-help-tip";
+  const LEGACY_IDS = ["sonniger-cr3-tip", "sonniger-cr3-tip-css", TIP_ID];
 
-  /**
-   * @type {{
-   *   tip: Element,
-   *   prev: string,
-   *   entityId: string,
-   *   raf: number,
-   * } | null}
-   */
+  /** @type {HTMLElement | null} */
+  let tip = null;
+  /** @type {{ entityId: string, disabled: Element[] } | null} */
   let active = null;
   let leaveTimer = null;
 
@@ -67,67 +58,43 @@
     return null;
   }
 
-  function isLegacyTip(n) {
-    return n && LEGACY_IDS.indexOf(n.id) !== -1;
-  }
-
-  function tipText(tip) {
-    try {
-      const t = (tip.textContent || "").trim();
-      if (t) return t;
-    } catch (e) {
-      /* ignore */
-    }
-    try {
-      if (typeof tip.content === "string" && tip.content) return tip.content;
-    } catch (e) {
-      /* ignore */
-    }
-    return "";
-  }
-
-  function setTipText(tip, text) {
-    try {
-      tip.textContent = text;
-    } catch (e) {
-      /* ignore */
-    }
-    try {
-      tip.content = text;
-      tip.setAttribute?.("content", text);
-    } catch (e) {
-      /* ignore */
-    }
-    try {
-      tip.requestUpdate?.();
-    } catch (e) {
-      /* ignore */
-    }
-  }
-
-  /** Innermost ha-tooltip for this row (the one that shows the entity name). */
-  function findNativeTip(path) {
-    for (const n of path) {
-      if (n && n.localName === "ha-tooltip" && !isLegacyTip(n)) return n;
-    }
+  function findAnchor(path, entityId) {
     for (const n of path) {
       if (!n || !n.localName) continue;
       const ln = n.localName;
-      const isRow =
-        ln.includes("entity-row") ||
-        ln === "hui-generic-entity-row" ||
-        ln === "ha-list-item";
-      if (!isRow) continue;
+      if (ln.includes("entity-row") || ln === "hui-generic-entity-row") return n;
+      if (ln === "ha-list-item" || ln === "mwc-list-item") return n;
+      if (entityIdFromNode(n) === entityId) return n;
+    }
+    for (const n of path) {
+      if (n && n.nodeType === 1 && n.getBoundingClientRect) return n;
+    }
+    return null;
+  }
+
+  function collectNativeTips(path) {
+    const out = [];
+    const seen = new Set();
+    const add = (t) => {
+      if (!t || t.id === TIP_ID || seen.has(t)) return;
+      seen.add(t);
+      out.push(t);
+    };
+    for (const n of path) {
+      if (!n) continue;
+      if (n.localName === "ha-tooltip") add(n);
       try {
-        const t =
-          n.shadowRoot?.querySelector?.("ha-tooltip") ||
-          n.querySelector?.("ha-tooltip");
-        if (t && !isLegacyTip(t)) return t;
+        n.querySelectorAll?.("ha-tooltip").forEach(add);
+      } catch (e) {
+        /* ignore */
+      }
+      try {
+        n.shadowRoot?.querySelectorAll?.("ha-tooltip").forEach(add);
       } catch (e) {
         /* ignore */
       }
     }
-    return null;
+    return out;
   }
 
   function stripTitles(path) {
@@ -141,56 +108,106 @@
     }
   }
 
-  function stopLoop() {
-    if (active && active.raf) {
-      cancelAnimationFrame(active.raf);
-      active.raf = 0;
+  function ensureTip() {
+    if (tip && tip.isConnected) return tip;
+    tip = document.createElement("ha-tooltip");
+    tip.id = TIP_ID;
+    try {
+      tip.trigger = "manual";
+      tip.placement = "left";
+      tip.withoutArrow = true;
+      tip.showDelay = 0;
+      tip.hideDelay = 0;
+    } catch (e) {
+      tip.setAttribute("trigger", "manual");
+      tip.setAttribute("placement", "left");
+    }
+    tip.style.cssText =
+      "--max-width:min(360px,92vw);--ha-tooltip-max-width:min(360px,92vw);z-index:10000;";
+    document.body.appendChild(tip);
+    return tip;
+  }
+
+  function hideOurs() {
+    if (!tip) return;
+    try {
+      tip.open = false;
+      if (typeof tip.hide === "function") tip.hide();
+      tip.anchor = null;
+      tip.textContent = "";
+    } catch (e) {
+      /* ignore */
     }
   }
 
-  function restore() {
+  function restoreNatives(list) {
+    for (const t of list || []) {
+      try {
+        t.disabled = false;
+      } catch (e) {
+        /* ignore */
+      }
+    }
+  }
+
+  function hide() {
     if (leaveTimer) {
       clearTimeout(leaveTimer);
       leaveTimer = null;
     }
-    if (!active) return;
-    stopLoop();
-    setTipText(active.tip, active.prev);
-    active = null;
+    if (active) {
+      restoreNatives(active.disabled);
+      active = null;
+    }
+    hideOurs();
   }
 
-  function keepHelp() {
-    if (!active) return;
-    const help = helpFor(active.entityId);
-    if (!help) {
-      restore();
-      return;
-    }
-    if (tipText(active.tip) !== help) {
-      setTipText(active.tip, help);
-    }
-    active.raf = requestAnimationFrame(keepHelp);
-  }
-
-  function activate(entityId, tip, path) {
+  function showHelp(entityId, anchor, path) {
     const help = helpFor(entityId);
-    if (!help || !tip) {
-      restore();
+    if (!help || !anchor) {
+      hide();
       return;
     }
+
     stripTitles(path);
-
-    if (active && active.tip === tip && active.entityId === entityId) {
-      if (tipText(tip) !== help) setTipText(tip, help);
-      return;
+    const natives = collectNativeTips(path);
+    const disabled = [];
+    for (const t of natives) {
+      try {
+        t.open = false;
+        if (typeof t.hide === "function") t.hide();
+        if (!t.disabled) {
+          t.disabled = true;
+          disabled.push(t);
+        }
+      } catch (e) {
+        /* ignore */
+      }
     }
 
-    restore();
+    if (active && active.entityId !== entityId) {
+      restoreNatives(active.disabled.filter((t) => disabled.indexOf(t) === -1));
+    }
 
-    const prev = tipText(tip) || entityId;
-    active = { tip, prev, entityId, raf: 0 };
-    setTipText(tip, help);
-    active.raf = requestAnimationFrame(keepHelp);
+    const t = ensureTip();
+    const same = active && active.entityId === entityId && t.textContent === help;
+    active = { entityId, disabled };
+    if (same) return;
+
+    t.textContent = help;
+    try {
+      t.anchor = anchor;
+    } catch (e) {
+      /* ignore */
+    }
+    requestAnimationFrame(() => {
+      try {
+        t.open = true;
+        if (typeof t.show === "function") t.show();
+      } catch (e) {
+        /* ignore */
+      }
+    });
   }
 
   function onPointerOver(ev) {
@@ -200,9 +217,8 @@
     }
     const path =
       typeof ev.composedPath === "function" ? ev.composedPath() : [];
-
     for (const n of path) {
-      if (isLegacyTip(n)) return;
+      if (n && n.id === TIP_ID) return;
     }
 
     let entityId = null;
@@ -210,23 +226,17 @@
       entityId = entityIdFromNode(n);
       if (entityId) break;
     }
-
     if (!entityId || !helpFor(entityId)) {
-      leaveTimer = setTimeout(restore, 100);
+      leaveTimer = setTimeout(hide, 120);
       return;
     }
-
-    const tip = findNativeTip(path);
-    if (!tip) {
-      leaveTimer = setTimeout(restore, 100);
-      return;
-    }
-
-    activate(entityId, tip, path);
+    const anchor = findAnchor(path, entityId);
+    showHelp(entityId, anchor, path);
   }
 
   function scrubLegacy() {
     for (const id of LEGACY_IDS) {
+      if (id === TIP_ID) continue;
       try {
         document.getElementById(id)?.remove();
       } catch (e) {
@@ -237,17 +247,25 @@
 
   function boot() {
     scrubLegacy();
-    setTimeout(scrubLegacy, 500);
+    setTimeout(scrubLegacy, 400);
     document.addEventListener("pointerover", onPointerOver, true);
-    window.addEventListener("blur", restore);
+    window.addEventListener("blur", hide);
     document.addEventListener("visibilitychange", () => {
-      if (document.hidden) restore();
+      if (document.hidden) hide();
     });
   }
 
+  const start = () => {
+    if (window.customElements?.whenDefined) {
+      customElements.whenDefined("ha-tooltip").then(boot).catch(boot);
+    } else {
+      boot();
+    }
+  };
+
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", boot);
+    document.addEventListener("DOMContentLoaded", start);
   } else {
-    boot();
+    start();
   }
 })();
