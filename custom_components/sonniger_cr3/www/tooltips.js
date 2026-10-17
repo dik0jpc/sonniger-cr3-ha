@@ -1,11 +1,13 @@
 /**
- * Sonniger CR3 1.0.20 — help tip must match the row under the cursor.
+ * Sonniger CR3 1.0.21 — help tip must track the row under the cursor.
  *
- * Bugs in 1.0.19 (screenshot): hover "Group slaves" still showed native name
- * tip + help text for Group role. Fixes:
- *  1) Entity id from the entity-row in composedPath (not a stale sibling).
- *  2) Disable ALL native ha-tooltips in the surrounding card, not only path.
- *  3) Always refresh help text when entity id changes.
+ * Root cause of "Group lock" + Group-master help (and similar): our tip is
+ * placed to the LEFT of the row; the pointer crosses it when moving down the
+ * list. We used to ignore events on our tip → help stayed on the previous
+ * entity while the native name tip showed the new row.
+ *
+ * Fix: pointer-events:none on our tip + resolve entity via elementsFromPoint
+ * on pointermove (not only pointerover).
  */
 (function () {
   const ATTRS = ["help", "\u0441\u043f\u0440\u0430\u0432\u043a\u0430"];
@@ -17,6 +19,9 @@
   /** @type {{ entityId: string, disabled: Element[] } | null} */
   let active = null;
   let leaveTimer = null;
+  let lastX = 0;
+  let lastY = 0;
+  let moveScheduled = false;
 
   function hass() {
     try {
@@ -68,51 +73,50 @@
     );
   }
 
-  /** Prefer the entity-row under the pointer — never a sibling's help. */
-  function entityIdFromPath(path, clientX, clientY) {
+  function pathFromPoint(x, y) {
+    try {
+      const stack = document.elementsFromPoint(x, y) || [];
+      const path = [];
+      for (const el of stack) {
+        if (!el || el.id === TIP_ID) continue;
+        path.push(el);
+        let n = el;
+        for (let i = 0; i < 12 && n; i++) {
+          const root = n.getRootNode && n.getRootNode();
+          if (root && root.host) {
+            path.push(root.host);
+            n = root.host;
+          } else {
+            break;
+          }
+        }
+      }
+      return path;
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function entityIdFromPath(path) {
     for (const n of path) {
       if (!isRow(n)) continue;
       const id = entityIdFromNode(n);
-      if (id && helpFor(id)) return id;
       if (id) return id;
     }
-
-    let best = null;
-    let bestArea = Infinity;
-    for (const n of path) {
-      const id = entityIdFromNode(n);
-      if (!id || !helpFor(id) || !n.getBoundingClientRect) continue;
-      const r = n.getBoundingClientRect();
-      if (r.width < 2 || r.height < 2) continue;
-      if (
-        clientX < r.left ||
-        clientX > r.right ||
-        clientY < r.top ||
-        clientY > r.bottom
-      ) {
-        continue;
-      }
-      const area = r.width * r.height;
-      if (area < bestArea) {
-        bestArea = area;
-        best = id;
-      }
-    }
-    if (best) return best;
-
     for (const n of path) {
       const id = entityIdFromNode(n);
       if (id && helpFor(id)) return id;
+    }
+    for (const n of path) {
+      const id = entityIdFromNode(n);
+      if (id) return id;
     }
     return null;
   }
 
   function findAnchor(path, entityId) {
     for (const n of path) {
-      if (isRow(n) && entityIdFromNode(n) === entityId) return n;
-    }
-    for (const n of path) {
-      if (isRow(n)) return n;
+      if (isRow(n) && (!entityId || entityIdFromNode(n) === entityId)) return n;
     }
     for (const n of path) {
       if (entityIdFromNode(n) === entityId && n.getBoundingClientRect) return n;
@@ -135,11 +139,8 @@
         return n;
       }
       const root = n.getRootNode && n.getRootNode();
-      if (root && root.host) {
-        n = root.host;
-      } else {
-        n = n.parentElement;
-      }
+      if (root && root.host) n = root.host;
+      else n = n.parentElement;
     }
     return anchor;
   }
@@ -147,9 +148,7 @@
   function walkTips(node, out, seen) {
     if (!node || seen.has(node)) return;
     seen.add(node);
-    if (node.localName === "ha-tooltip" && node.id !== TIP_ID) {
-      out.push(node);
-    }
+    if (node.localName === "ha-tooltip" && node.id !== TIP_ID) out.push(node);
     try {
       if (node.shadowRoot) walkTips(node.shadowRoot, out, seen);
     } catch (e) {
@@ -157,9 +156,7 @@
     }
     try {
       const kids = node.children;
-      if (kids) {
-        for (let i = 0; i < kids.length; i++) walkTips(kids[i], out, seen);
-      }
+      if (kids) for (let i = 0; i < kids.length; i++) walkTips(kids[i], out, seen);
     } catch (e) {
       /* ignore */
     }
@@ -200,8 +197,9 @@
       tip.setAttribute("trigger", "manual");
       tip.setAttribute("placement", "left");
     }
+    /* CRITICAL: do not steal pointer — otherwise help sticks to previous row */
     tip.style.cssText =
-      "--max-width:min(360px,92vw);--ha-tooltip-max-width:min(360px,92vw);z-index:2147483646;";
+      "pointer-events:none !important;--max-width:min(360px,92vw);--ha-tooltip-max-width:min(360px,92vw);z-index:2147483646;";
     document.body.appendChild(tip);
     return tip;
   }
@@ -249,9 +247,8 @@
       t.open = false;
       if (typeof t.hide === "function") t.hide();
       t.disabled = true;
-      /* belt: if disable ignored, at least blank the short name */
       if (typeof t.textContent === "string" && t.textContent.length < 48) {
-        t.dataset.sonnigerPrev = t.textContent;
+        if (t.dataset.sonnigerPrev == null) t.dataset.sonnigerPrev = t.textContent;
         t.textContent = "\u00a0";
       }
     } catch (e) {
@@ -275,13 +272,18 @@
     }
 
     if (active && active.entityId !== entityId) {
-      restoreNatives(
-        active.disabled.filter((t) => disabled.indexOf(t) === -1)
-      );
+      restoreNatives(active.disabled.filter((t) => disabled.indexOf(t) === -1));
     }
 
     const t = ensureTip();
+    const unchanged =
+      active && active.entityId === entityId && t.textContent === help;
     active = { entityId, disabled };
+    if (unchanged) {
+      /* still keep natives silenced */
+      return;
+    }
+
     t.textContent = help;
     try {
       t.anchor = anchor;
@@ -298,24 +300,36 @@
     });
   }
 
-  function onPointerOver(ev) {
+  function updateAt(x, y) {
+    const path = pathFromPoint(x, y);
+    const entityId = entityIdFromPath(path);
+    if (!entityId || !helpFor(entityId)) {
+      if (!leaveTimer) leaveTimer = setTimeout(hide, 150);
+      return;
+    }
     if (leaveTimer) {
       clearTimeout(leaveTimer);
       leaveTimer = null;
     }
-    const path =
-      typeof ev.composedPath === "function" ? ev.composedPath() : [];
-    for (const n of path) {
-      if (n && n.id === TIP_ID) return;
-    }
-
-    const entityId = entityIdFromPath(path, ev.clientX, ev.clientY);
-    if (!entityId || !helpFor(entityId)) {
-      leaveTimer = setTimeout(hide, 120);
-      return;
-    }
     const anchor = findAnchor(path, entityId);
     showHelp(entityId, anchor, path);
+  }
+
+  function onPointerOver(ev) {
+    lastX = ev.clientX;
+    lastY = ev.clientY;
+    updateAt(lastX, lastY);
+  }
+
+  function onPointerMove(ev) {
+    lastX = ev.clientX;
+    lastY = ev.clientY;
+    if (moveScheduled) return;
+    moveScheduled = true;
+    requestAnimationFrame(() => {
+      moveScheduled = false;
+      updateAt(lastX, lastY);
+    });
   }
 
   function scrubLegacy() {
@@ -332,6 +346,7 @@
     scrubLegacy();
     setTimeout(scrubLegacy, 400);
     document.addEventListener("pointerover", onPointerOver, true);
+    document.addEventListener("pointermove", onPointerMove, true);
     window.addEventListener("blur", hide);
     document.addEventListener("visibilitychange", () => {
       if (document.hidden) hide();
