@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DOMAIN = "sonniger_cr3"
-INTEGRATION_VERSION = "1.0.9"
+INTEGRATION_VERSION = "1.0.10"
 MANUFACTURER = "Sonniger"
 MODEL_CR3 = "CR3 EC"
 MODEL_MIX = "MIX 1 EC"

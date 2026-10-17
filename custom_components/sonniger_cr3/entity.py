@@ -61,8 +61,9 @@ class SonnigerEntity(Entity):
             platform = self.entity_id.split(".", 1)[0]
         desc = help_text(self.hass, self._key, platform)
         if desc:
-            # Shown in more-info; frontend tooltips.js also uses this for hover title.
+            # more-info + www/tooltips.js (hover). Duplicate RU key for visibility.
             attrs["description"] = desc
+            attrs["справка"] = desc
         if self._cmd_leaf:
             attrs["writable"] = self.cmd_writable
             attrs["group_locked"] = self._device.is_group_locked()

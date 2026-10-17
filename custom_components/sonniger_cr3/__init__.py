@@ -12,7 +12,13 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
 
-from .const import ATTR_DEVICE_ID, DOMAIN, PLATFORMS, TOPIC_ALL_OTA
+from .const import (
+    ATTR_DEVICE_ID,
+    DOMAIN,
+    INTEGRATION_VERSION,
+    PLATFORMS,
+    TOPIC_ALL_OTA,
+)
 from .hub import SonnigerHub
 
 _LOGGER = logging.getLogger(__name__)
@@ -23,11 +29,12 @@ _FRONTEND_KEY = f"{DOMAIN}_frontend"
 
 
 async def _async_setup_frontend(hass: HomeAssistant) -> None:
-    """Serve www/tooltips.js once (hover titles from attributes.description)."""
+    """Serve www/tooltips.js (hover help from attributes.description)."""
     if hass.data.get(_FRONTEND_KEY):
         return
     www = Path(__file__).parent / "www"
     if not www.is_dir():
+        _LOGGER.warning("sonniger_cr3: www/ missing — entity hover tips disabled")
         return
     url_path = f"/{DOMAIN}_static"
     try:
@@ -40,16 +47,21 @@ async def _async_setup_frontend(hass: HomeAssistant) -> None:
         try:
             hass.http.register_static_path(url_path, str(www), False)
         except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("static path failed: %s", err)
+            _LOGGER.warning("sonniger_cr3: static path failed: %s", err)
             return
     try:
         from homeassistant.components.frontend import add_extra_js_url
 
-        add_extra_js_url(hass, f"{url_path}/tooltips.js")
+        # Cache-bust so HACS/browser picks up tip script after upgrade.
+        add_extra_js_url(
+            hass, f"{url_path}/tooltips.js?v={INTEGRATION_VERSION}"
+        )
         hass.data[_FRONTEND_KEY] = True
-        _LOGGER.debug("Registered entity tooltip script")
+        _LOGGER.info(
+            "sonniger_cr3: entity tooltip script %s", INTEGRATION_VERSION
+        )
     except Exception as err:  # noqa: BLE001
-        _LOGGER.debug("extra js failed: %s", err)
+        _LOGGER.warning("sonniger_cr3: extra js failed: %s", err)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
