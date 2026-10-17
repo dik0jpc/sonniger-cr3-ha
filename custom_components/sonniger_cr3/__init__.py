@@ -29,11 +29,7 @@ _FRONTEND_KEY = f"{DOMAIN}_frontend"
 
 
 async def _async_setup_frontend(hass: HomeAssistant) -> None:
-    """Serve cleanup JS (clears stuck overlays / polluted ha-tooltip from 1.0.9–12).
-
-    HA has no API for custom entity hover tooltips. Help: attributes.help /
-    attributes.справка — open entity → Attributes.
-    """
+    """Serve www/tooltips.js — fill native ha-tooltip with attributes.help on hover."""
     if hass.data.get(_FRONTEND_KEY):
         return
     www = Path(__file__).parent / "www"
