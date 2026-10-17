@@ -7,6 +7,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import Entity
 
 from .const import INTEGRATION_VERSION, SIGNAL_DEVICE
+from .entity_help import help_text
 from .hub import SonnigerDevice, SonnigerHub
 
 
@@ -17,6 +18,8 @@ class SonnigerEntity(Entity):
     _attr_should_poll = False
     # MQTT cmd leaf this control writes; None = sensors / always-info.
     _cmd_leaf: str | None = None
+    # HA platform name for help lookup (sensor / binary_sensor / number / …).
+    _help_platform: str | None = None
 
     def __init__(
         self,
@@ -53,6 +56,13 @@ class SonnigerEntity(Entity):
         attrs: dict[str, str | bool] = {
             "integration_version": INTEGRATION_VERSION,
         }
+        platform = self._help_platform
+        if platform is None and self.entity_id:
+            platform = self.entity_id.split(".", 1)[0]
+        desc = help_text(self.hass, self._key, platform)
+        if desc:
+            # Shown in more-info; frontend tooltips.js also uses this for hover title.
+            attrs["description"] = desc
         if self._cmd_leaf:
             attrs["writable"] = self.cmd_writable
             attrs["group_locked"] = self._device.is_group_locked()

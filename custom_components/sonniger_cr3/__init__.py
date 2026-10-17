@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from pathlib import Path
 
 import voluptuous as vol
 
@@ -18,6 +19,37 @@ _LOGGER = logging.getLogger(__name__)
 
 SERVICE_PING = "ping"
 SERVICE_OTA = "ota"
+_FRONTEND_KEY = f"{DOMAIN}_frontend"
+
+
+async def _async_setup_frontend(hass: HomeAssistant) -> None:
+    """Serve www/tooltips.js once (hover titles from attributes.description)."""
+    if hass.data.get(_FRONTEND_KEY):
+        return
+    www = Path(__file__).parent / "www"
+    if not www.is_dir():
+        return
+    url_path = f"/{DOMAIN}_static"
+    try:
+        from homeassistant.components.http import StaticPathConfig
+
+        await hass.http.async_register_static_paths(
+            [StaticPathConfig(url_path, str(www), False)]
+        )
+    except Exception:  # noqa: BLE001 — older HA
+        try:
+            hass.http.register_static_path(url_path, str(www), False)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("static path failed: %s", err)
+            return
+    try:
+        from homeassistant.components.frontend import add_extra_js_url
+
+        add_extra_js_url(hass, f"{url_path}/tooltips.js")
+        hass.data[_FRONTEND_KEY] = True
+        _LOGGER.debug("Registered entity tooltip script")
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.debug("extra js failed: %s", err)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -31,6 +63,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
 
     _async_register_services(hass)
+    await _async_setup_frontend(hass)
     return True
 
 
