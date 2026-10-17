@@ -1,47 +1,75 @@
 # Sonniger CR3 — Home Assistant
 
-HACS-интеграция для контроллеров **Sonniger CR3 / MIX EC** (MQTT).
+HACS-интеграция для контроллеров **Sonniger CR3 / MIX EC** по MQTT.
+
+| | |
+|---|---|
+| **Репозиторий** | [dik0jpc/sonniger-cr3-ha](https://github.com/dik0jpc/sonniger-cr3-ha) |
+| **Версия** | **1.0.21** |
+| **Требования** | Home Assistant + MQTT (Mosquitto), прошивка платы ≥ **2.1.78** |
+
+---
 
 ## Установка
 
-1. В HA уже настроен MQTT (Mosquitto).
+1. В HA уже настроен **MQTT** (Mosquitto).
 2. HACS → ⋮ → **Custom repositories** →  
    `https://github.com/dik0jpc/sonniger-cr3-ha` → категория **Integration**.
-3. Download **Sonniger CR3** → перезагрузка HA.
-4. Settings → Devices & services → **Add Integration** → **Sonniger CR3**.
-5. Режим **Simple** или **Advanced**.
-6. На плате укажите IP брокера MQTT. При использовании этой интеграции выключите встроенный MQTT Discovery на плате (**HADISC = Off**, прошивка ≥ 2.1.78; с 2.1.87 достаточно Off на Master).
+3. Download **Sonniger CR3** → перезагрузка Home Assistant.
+4. **Settings → Devices & services → Add Integration → Sonniger CR3**.
+5. Выберите режим **Simple** или **Advanced**.
+6. На плате укажите IP брокера MQTT и выключите встроенный Discovery:  
+   **HADISC = Off** (с прошивки **2.1.87** достаточно Off на Master).
 
-## Группа Master / Slave (1.0.7+)
+> После обновления интеграции: **HACS Update → Reload → закройте вкладку HA** и откройте снова (**Ctrl+F5**), иначе в браузере может остаться старый JS подсказок.
 
-Управляйте **Master**. У Slave/Smart при `grp_lock` (в т.ч. `wait` / пока есть ID группы) Climate / Number / Switch / Fan **read-only** (иконка замка). Mode остаётся доступен. Heat target в HA: **0…40** (как на веб-UI INDEX/MAX; воздух 5…35).
+---
 
-С **1.0.8** (прошивка ≥ **2.1.93**): в Simple видны **Group role**, **Group master**, **Group master IP**.
-
-С **1.0.17**: при наведении длинная справка (`help` / `справка`) подставляется **в тот же** родной tip, где было имя («OTA status» и т.п.) — без второго окна сзади.
-
-С **1.0.18**: Slave/Smart с `grp_lock` нельзя крутить Heat target (в т.ч. в `wait`); потолок Heat target / Climate **40** (не 100).
-
-С **1.0.19**: при наведении — одна подсказка с длинной справкой (родной tip с коротким именем отключается).
-
-С **1.0.20**: tip берёт сущность из строки под курсором; родные tip’ы глушатся по всей карточке.
-
-С **1.0.21**: tip с `pointer-events:none` + обновление по `pointermove`/`elementsFromPoint` — справка не залипает на предыдущей строке при движении вниз по списку. HACS Update → Reload → **закройте вкладку HA** + Ctrl+F5.
-
-## Режимы
+## Режимы UI
 
 | Режим | CR3 | MIX |
 |-------|-----|-----|
-| Simple | Climate + online/alarm + group role/master/IP | Fan + Circuit enable + online/alarm + group role/master/IP |
-| Advanced | + температуры, Mode, AFZ, OTA, group… | + ΔT/phase и уставки |
+| **Simple** | Climate, online / alarm, group role / master / IP | Fan, Circuit enable, online / alarm, group role / master / IP |
+| **Advanced** | + температуры, Mode, AFZ, OTA, group… | + ΔT / phase и уставки |
+
+---
+
+## Группа Master / Slave
+
+Управляйте **только Master**.
+
+| | |
+|---|---|
+| **Slave / Smart + `grp_lock`** | Climate, Number, Switch, Fan — **только чтение** (иконка замка), в т.ч. в роли `wait` и пока задан ID группы |
+| **Mode** | всегда можно сменить |
+| **Heat target** | диапазон в HA **0…40** (как веб INDEX/MAX; воздух на плате **5…35**) |
+
+В Simple (прошивка ≥ **2.1.93**): сущности **Group role**, **Group master**, **Group master IP**.
+
+---
+
+## Подсказки при наведении
+
+У сущностей Sonniger при наведении показывается **одна** длинная справка (атрибуты `help` / `справка`) — не короткое имя и не чужой текст с соседней строки.
+
+Полный текст также в **Attributes** сущности (more-info).
+
+---
 
 ## Сервисы
 
-- `sonniger_cr3.ping` — keepalive
-- `sonniger_cr3.ota` — OTA по URL (`device_id` или `all: true`)
+| Сервис | Назначение |
+|--------|------------|
+| `sonniger_cr3.ping` | keepalive (`device_id` опционально) |
+| `sonniger_cr3.ota` | OTA по URL (`device_id` или `all: true`) |
 
-Прошивка и железо: приватный репозиторий контроллера (не входит в этот пакет).
+Прошивка и железо — в приватном репозитории контроллера (не входят в этот пакет).
 
-## Icon
+---
 
-Fan brand images live in `custom_components/sonniger_cr3/brand/` (`icon.png`, `logo.png`, and `dark_*` variants). Home Assistant 2026.3+ serves them automatically — no brands repo PR needed. Update the integration in HACS to pick them up.
+## Иконки
+
+Файлы бренда: `custom_components/sonniger_cr3/brand/`  
+(`icon.png`, `logo.png`, варианты `dark_*`).
+
+Home Assistant **2026.3+** отдаёт их сам — отдельный PR в brands-репозиторий не нужен. Обновите интеграцию в HACS, чтобы подтянуть иконки.
