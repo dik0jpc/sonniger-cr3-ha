@@ -47,7 +47,7 @@ HELP_RU: dict[str, str] = {
     "grp_n": "Сколько slave недавно прислали status (видно на Master). На ведомом обычно 0.",
     "grp_lock": "1 = пока жив sync, Slave/Smart не принимают fan/enable из HA (крутите Master). По умолчанию вкл.",
     # numbers (defaults!)
-    "heat_target": "Цель контура CR3 (то, к чему стремится heat_process). Меняйте на Master. Типичный старт ~5…20 в зависимости от heat_goal.",
+    "heat_target": "Цель контура CR3 (сравнивается с heat_process). Диапазон в HA 0…40 (INDEX/MAX; воздух 5…35). В группе с grp_lock крутите только Master.",
     "setpoint": "Уставка воздуха °C (день/ночь могут отличаться на плате). Диапазон примерно 5…35 °C.",
     "number:afz": "Порог антизаморозки по воде (°C). Ниже TIN → AFZ. По умолчанию около 8 °C (см. веб Безотказность / Упраление).",
     "room_afz": "Порог AFZ по воздуху (°C), если Room AFZ включён. По умолчанию 5 °C.",
@@ -103,7 +103,7 @@ HELP_EN: dict[str, str] = {
     "grp_master_ip": "Current master Ethernet IP (open http://IP/).",
     "grp_n": "Recent slave count (on master).",
     "grp_lock": "1 = followers ignore HA fan/enable while following (default on).",
-    "heat_target": "CR3 heat target — set on Master in a group.",
+    "heat_target": "CR3 heat target (0…40 in HA; air 5…35). In a locked group, set on Master only.",
     "setpoint": "Air setpoint °C (about 5…35).",
     "number:afz": "Water AFZ threshold °C (default ~8 °C).",
     "room_afz": "Room AFZ threshold °C (default 5 °C).",

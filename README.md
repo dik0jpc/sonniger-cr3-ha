@@ -14,11 +14,13 @@ HACS-интеграция для контроллеров **Sonniger CR3 / MIX E
 
 ## Группа Master / Slave (1.0.7+)
 
-Управляйте **Master**. У Slave/Smart в `follow` + `grp_lock` поля Climate / Number / Switch / Fan **read-only** (иконка замка). Mode остаётся доступен.
+Управляйте **Master**. У Slave/Smart при `grp_lock` (в т.ч. `wait` / пока есть ID группы) Climate / Number / Switch / Fan **read-only** (иконка замка). Mode остаётся доступен. Heat target в HA: **0…40** (как на веб-UI INDEX/MAX; воздух 5…35).
 
 С **1.0.8** (прошивка ≥ **2.1.93**): в Simple видны **Group role**, **Group master**, **Group master IP**.
 
-С **1.0.17**: при наведении длинная справка (`help` / `справка`) подставляется **в тот же** родной tip, где было имя («OTA status» и т.п.) — без второго окна сзади. После обновления: HACS Update → Reload → **закройте вкладку HA** и откройте снова + Ctrl+F5.
+С **1.0.17**: при наведении длинная справка (`help` / `справка`) подставляется **в тот же** родной tip, где было имя («OTA status» и т.п.) — без второго окна сзади.
+
+С **1.0.18**: Slave/Smart с `grp_lock` нельзя крутить Heat target (в т.ч. в `wait`); потолок Heat target / Climate **40** (не 100). После обновления: HACS Update → Reload → закройте вкладку HA + Ctrl+F5.
 
 ## Режимы
 

@@ -47,8 +47,9 @@ class SonnigerClimate(SonnigerEntity, ClimateEntity):
 
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_fan_modes = FAN_MODES
+    # Match board web UI for INDEX/MAX (0…40). AIR is 5…35; FAN% uses Fan entity.
     _attr_min_temp = 0.0
-    _attr_max_temp = 100.0
+    _attr_max_temp = 40.0
     _attr_target_temperature_step = 0.5
     _cmd_leaf = "enable"  # attrs: group lock state
 
@@ -100,7 +101,14 @@ class SonnigerClimate(SonnigerEntity, ClimateEntity):
         temp = kwargs.get(ATTR_TEMPERATURE)
         if temp is None:
             return
-        await self._async_cmd("heat_target", str(temp))
+        if not self._device.cmd_writable("heat_target"):
+            return
+        try:
+            t = float(temp)
+        except (TypeError, ValueError):
+            return
+        t = max(self.min_temp, min(self.max_temp, t))
+        await self._async_cmd("heat_target", str(t))
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         if hvac_mode == HVACMode.OFF:

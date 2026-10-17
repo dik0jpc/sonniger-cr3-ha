@@ -21,7 +21,8 @@ _SET_VALUE = getattr(NumberEntityFeature, "SET_VALUE", None) if NumberEntityFeat
 
 # key, name, state_leaf, cmd_leaf, min, max, step, unit, cr3, mix
 NUMBER_DEFS = [
-    ("heat_target", "Heat target", "heat_target", "heat_target", 0, 100, 0.5, None, True, False),
+    # INDEX/MAX 0…40 (board web); AIR 5…35; FAN% → use Fan entity, not this.
+    ("heat_target", "Heat target", "heat_target", "heat_target", 0, 40, 0.5, None, True, False),
     ("setpoint", "Setpoint", "setpoint", "setpoint", 5, 35, 0.5, UnitOfTemperature.CELSIUS, True, False),
     ("afz", "AFZ water", "afz", "antifreeze", 2, 20, 0.5, UnitOfTemperature.CELSIUS, True, False),
     ("room_afz", "RAFZ air", "room_afz", "room_afz", 5, 15, 0.5, UnitOfTemperature.CELSIUS, True, False),
@@ -107,8 +108,13 @@ class SonnigerNumber(SonnigerEntity, NumberEntity):
     async def async_set_native_value(self, value: float) -> None:
         if not self._device.cmd_writable(self._cmd_leaf or ""):
             return
+        try:
+            v = float(value)
+        except (TypeError, ValueError):
+            return
+        v = max(self._attr_native_min_value, min(self._attr_native_max_value, v))
         if self._attr_native_step >= 1 and float(self._attr_native_step).is_integer():
-            payload = str(int(round(value)))
+            payload = str(int(round(v)))
         else:
-            payload = str(value)
+            payload = str(v)
         await self._async_cmd(self._cmd_leaf or "", payload)

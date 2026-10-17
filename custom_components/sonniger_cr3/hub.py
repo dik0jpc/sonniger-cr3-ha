@@ -77,34 +77,43 @@ class SonnigerDevice:
         return (self.get("grp_role") or "").strip().lower()
 
     def is_group_locked(self) -> bool:
-        """True when board follows master with grp_lock (HA must drive Master only)."""
+        """True when Slave/Smart has grp_lock — HA must drive Master only.
+
+        Locks on follow / lost / wait (no sync yet) and whenever a group id is
+        set. Previously only follow|lost → wait/starting left Heat target editable.
+        """
         mode = self.mode()
         if mode not in ("slave", "smart"):
             return False
-        role = self.grp_role()
-        if role not in ("follow", "lost"):
-            return False
         # Default True when topic missing (FW default grp_lock=on).
-        return self.get_bool("grp_lock", True)
+        if not self.get_bool("grp_lock", True):
+            return False
+        role = self.grp_role()
+        if role in ("follow", "lost", "wait"):
+            return True
+        # Group configured but role not yet follow (boot / discovery gap).
+        if (self.get("group") or "").strip():
+            return True
+        return False
 
     def cmd_writable(self, leaf: str) -> bool:
         """Whether HA UI may send this cmd leaf.
 
-        When Slave/Smart is following Master with grp_lock, *all* controls except
-        Mode are read-only (drive the Master card only).
+        When Slave/Smart is group-locked, *all* controls except Mode are
+        read-only (drive the Master card only). Hard slave never accepts
+        heat_target / setpoint even when unlocked.
         """
         if not leaf:
             return False
         if leaf == "mode":
             return True
-        # Follow + lock → HA must not edit this device's controls.
         if self.is_group_locked():
             return False
         mode = self.mode()
         if mode in ("manual", "master", ""):
             return True
         if mode == "slave":
-            # Hard slave (not locked / no follow yet): only FW allowlist.
+            # Hard slave: FW allowlist — no heat_target / heat_goal / setpoint.
             return leaf in {
                 "fan_pct",
                 "fan2_pct",
@@ -118,7 +127,7 @@ class SonnigerDevice:
                 "ping",
                 "reboot",
             }
-        # smart unlocked / wait / lost beyond lock window
+        # smart unlocked (no group / grp_lock off)
         return True
 
     def device_info(self) -> dict[str, Any]:
