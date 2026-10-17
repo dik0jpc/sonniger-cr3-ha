@@ -29,7 +29,7 @@ _FRONTEND_KEY = f"{DOMAIN}_frontend"
 
 
 async def _async_setup_frontend(hass: HomeAssistant) -> None:
-    """Serve www/tooltips.js — fill native ha-tooltip with attributes.help on hover."""
+    """Serve www/tooltips.js — own manual ha-tooltip with attributes.help on hover."""
     if hass.data.get(_FRONTEND_KEY):
         return
     www = Path(__file__).parent / "www"
@@ -51,7 +51,7 @@ async def _async_setup_frontend(hass: HomeAssistant) -> None:
     try:
         from homeassistant.components.frontend import add_extra_js_url
 
-        # Cache-bust: old builds attached pointermove listeners; this build only cleans up.
+        # Cache-bust when version bumps (critical after broken tip scripts).
         add_extra_js_url(
             hass, f"{url_path}/tooltips.js?v={INTEGRATION_VERSION}"
         )
